@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>Chore Roulette</title>
+    
+    <!-- Open Graph för Discord-delning -->
+    <meta property="og:title" content="Chore Roulette 🎲">
+    <meta property="og:description" content="Det roligaste sättet att fördela hushållssysslor!">
+    <meta property="og:type" content="website">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    
+    <style>
+        @keyframes bounce-in { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .animate-pop { animation: bounce-in 0.3s ease-out; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-500 to-purple-700 min-h-screen p-4 font-sans text-gray-900 pb-20">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-6 md:p-10">
+        <h1 class="text-3xl font-bold text-indigo-900 mb-6 text-center">Chore Roulette 🎲</h1>
+
+        <!-- Dynamiska kort för personer -->
+        <div id="people-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            <!-- Renderas via JavaScript -->
+        </div>
+
+        <button id="assign-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl transition duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg mb-10">
+            Dela ut sysslor till alla
+        </button>
+
+        <div class="border-t pt-8 space-y-8">
+            <!-- Namnhantering -->
+            <div>
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Deltagare (max 6)</h3>
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="new-name-input" placeholder="Namn..." class="flex-grow p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <button id="add-name-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold">+</button>
+                </div>
+                <div id="names-list" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Sysslor -->
+            <div>
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Administrera sysslor</h3>
+                <div class="flex gap-2 mb-6">
+                    <input type="text" id="new-chore-input" placeholder="Ny syssla..." class="flex-grow p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <button id="add-btn" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold">Lägg till</button>
+                </div>
+                
+                <div class="bg-gray-50 p-4 rounded-2xl max-h-60 overflow-y-auto">
+                    <ul id="chore-list" class="text-sm text-gray-700 space-y-2"></ul>
+                </div>
+                <button id="reset-list-btn" class="mt-4 text-sm text-red-500 hover:text-red-700 font-medium">Återställ sysslor till standard</button>
+            </div>
+
+            <!-- Historik -->
+            <div>
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Historik</h3>
+                <div id="history-list" class="bg-gray-100 p-4 rounded-2xl max-h-40 overflow-y-auto mb-8 text-sm">
+                    <!-- History items -->
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-10 text-center text-xs text-gray-400">
+            <p>Licensierad under Creative Commons BY 4.0</p>
+        </footer>
+    </div>
+
+    <script>
+        const defaultChores = [
+            "Dammsug som om livet berodde på det",
+            "Förhandla med tvätthögen",
+            "Ge kylskåpet ett pepp-tal",
+            "Sjung opera för diskberget",
+            "Muta dammråttorna med en bulle",
+            "Gör en dramatisk tolkning av att städa badrummet",
+            "Städa som en actionhjälte",
+            "Exilera 3 saker som inte hör hemma",
+            "Behandla sopkorgen som en VIP-gäst",
+            "Organisera lådan med allt möjligt medan du bär monokel"
+        ];
+
+        let chores = JSON.parse(localStorage.getItem('myChores')) || [...defaultChores];
+        let names = JSON.parse(localStorage.getItem('myNames')) || ["Rolf", "Emmanuelle"];
+        let history = JSON.parse(localStorage.getItem('choreHistory')) || [];
+        let assignments = JSON.parse(localStorage.getItem('currentAssignments')) || {};
+        let editingIndex = -1;
+
+        function updateUI() {
+            const grid = document.getElementById('people-grid');
+            grid.innerHTML = names.map((name, i) => `
+                <div class="p-4 rounded-2xl bg-indigo-50 border-2 border-indigo-100 min-h-[140px] flex flex-col items-center justify-center text-center relative shadow-sm">
+                    <h2 class="text-lg font-bold text-indigo-700 mb-2">${name}</h2>
+                    <p class="text-gray-600 italic text-sm mb-2">${assignments[name] || 'Väntar på uppdrag...'}</p>
+                    ${assignments[name] ? `<button onclick="markDone('${name}')" class="bg-green-500 text-white text-xs px-2 py-1 rounded-lg">Klar!</button>` : ''}
+                </div>
+            `).join('');
+
+            document.getElementById('names-list').innerHTML = names.map((n, i) => `
+                <span class="bg-gray-200 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                    ${n} 
+                    <button onclick="removeName(${i})" class="text-red-500 font-bold">×</button>
+                </span>
+            `).join('');
+
+            const choreList = document.getElementById('chore-list');
+            choreList.innerHTML = chores.map((c, i) => `
+                <li class="flex items-center justify-between bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                    <span class="truncate mr-2">${c}</span>
+                    <div class="flex gap-1 shrink-0">
+                        <button onclick="editMode(${i})" class="p-1 hover:bg-gray-200 rounded">✏️</button>
+                        <button onclick="deleteChore(${i})" class="p-1 hover:bg-red-100 rounded">🗑️</button>
+                    </div>
+                </li>
+            `).join('');
+
+            const historyList = document.getElementById('history-list');
+            historyList.innerHTML = history.length ? history.slice(-5).reverse().map(h => `
+                <div class="border-b pb-1 mb-1 text-gray-600">
+                    <span class="font-bold">${h.person}:</span> ${h.chore} <br>
+                    <span class="text-[10px]">${h.time}</span>
+                </div>
+            `).join('') : '<p class="text-gray-400 italic">Ingen historik än.</p>';
+            
+            localStorage.setItem('myChores', JSON.stringify(chores));
+            localStorage.setItem('myNames', JSON.stringify(names));
+            localStorage.setItem('choreHistory', JSON.stringify(history));
+            localStorage.setItem('currentAssignments', JSON.stringify(assignments));
+        }
+
+        document.getElementById('assign-btn').addEventListener('click', () => {
+            if (chores.length < names.length) {
+                alert("Du har färre sysslor än deltagare! Lägg till fler sysslor.");
+                return;
+            }
+            let pool = [...chores];
+            names.forEach(name => {
+                const idx = Math.floor(Math.random() * pool.length);
+                assignments[name] = pool.splice(idx, 1)[0];
+            });
+            updateUI();
+        });
+
+        window.markDone = (name) => {
+            history.push({ person: name, chore: assignments[name], time: new Date().toLocaleString() });
+            delete assignments[name];
+            updateUI();
+        };
+
+        document.getElementById('add-name-btn').addEventListener('click', () => {
+            const input = document.getElementById('new-name-input');
+            const name = input.value.trim();
+            if (name && names.length < 6) {
+                names.push(name);
+                input.value = '';
+                updateUI();
+            }
+        });
+
+        window.removeName = (idx) => {
+            if (names.length > 1) {
+                names.splice(idx, 1);
+                updateUI();
+            }
+        };
+
+        document.getElementById('add-btn').addEventListener('click', () => {
+            const input = document.getElementById('new-chore-input');
+            const val = input.value.trim();
+            if (!val) return;
+            if (editingIndex === -1) chores.push(val);
+            else { chores[editingIndex] = val; editingIndex = -1; }
+            input.value = '';
+            updateUI();
+        });
+
+        window.editMode = (idx) => {
+            editingIndex = idx;
+            document.getElementById('new-chore-input').value = chores[idx];
+        };
+
+        window.deleteChore = (idx) => {
+            chores.splice(idx, 1);
+            updateUI();
+        };
+
+        document.getElementById('reset-list-btn').addEventListener('click', () => {
+            if(confirm("Återställ listan?")) {
+                chores = [...defaultChores];
+                updateUI();
+            }
+        });
+
+        updateUI();
+    </script>
+</body>
+</html>
